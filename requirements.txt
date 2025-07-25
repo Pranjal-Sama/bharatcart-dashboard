@@ -1,0 +1,10 @@
+streamlit
+pandas
+matplotlib
+seaborn
+numpy
+scikit-learn
+imblearn
+joblib
+bcrypt
+python-dotenv

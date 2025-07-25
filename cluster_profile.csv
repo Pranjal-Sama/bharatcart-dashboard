@@ -1,0 +1,4 @@
+cluster,dim_customer_key,total_spent,discount_percent,stock_to_order_ratio,procured_quantity,delivery_time_days,city_order_count,age_bin,income_bracket,gender
+0,55020.82,-0.78,-0.18,0.59,-0.85,-0.0,0.01,0.6,1.01,0.54
+1,54981.75,-1.03,2.1,-0.2,0.14,0.01,0.01,0.58,0.98,0.53
+2,55175.27,0.84,-0.29,-0.44,0.66,0.0,-0.01,0.57,1.0,0.54
