@@ -3,8 +3,8 @@ pandas
 matplotlib
 seaborn
 numpy
-scikit-learn==1.2.2       # Trying a slightly older, very stable version
-imbalanced-learn==0.10.1  # Compatible with scikit-learn==1.2.x
+scikit-learn==1.7.1
+imbalanced-learn==0.12.4
 joblib
 bcrypt
 python-dotenv
