@@ -429,7 +429,7 @@ elif page == "Stock Deficit Prediction":
 
     st.subheader("✅ Final Recommendation")
     st.markdown("""
-    Based on our analysis, the **Random Forest model (after applying SMOTE)** is the most robust and accurate for predicting stock deficits.
+    Based on my analysis, the **Random Forest model (after applying SMOTE)** is the most robust and accurate for predicting stock deficits.
     - It is particularly effective at handling situations where stock deficits are rare events, ensuring we don't miss critical warnings.
     - Its high predictive power means BharatCart can rely on these forecasts to **proactively manage inventory**, reduce stockouts, and ultimately improve customer satisfaction.
     - **Key drivers for stock deficits** to focus on are: **`stock_to_order_ratio`**, **`procured_quantity`**, and **`city_order_count`**. By monitoring and managing these factors, BharatCart can significantly reduce the risk of future stockouts.
