@@ -9,14 +9,13 @@ import os
 from dotenv import load_dotenv
 
 # Import necessary scikit-learn components
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+# Removed train_test_split as models are loaded pre-trained and not re-trained on uploaded data
+# Removed direct LogisticRegression and RandomForestClassifier imports for fitting, as they are part of the joblib models
 from sklearn.metrics import (
     accuracy_score, roc_auc_score, balanced_accuracy_score,
     classification_report, confusion_matrix, ConfusionMatrixDisplay
 )
-from imblearn.over_sampling import SMOTE
+# Removed imblearn.over_sampling.SMOTE as it's part of the pre-trained model's training process
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.cluster import KMeans
 
@@ -49,6 +48,7 @@ if not st.session_state.logged_in:
     st.stop()
 
 # --- GLOBAL FEATURE DEFINITIONS ---
+# These are the features the SDP model expects as input, AFTER preprocessing (encoding and scaling)
 FEATURE_COLS_SDP = [
     'total_spent', 'procured_quantity', 'discount_percent',
     'stock_to_order_ratio', 'delivery_time_days', 'city_order_count',
@@ -56,27 +56,54 @@ FEATURE_COLS_SDP = [
 ]
 TARGET_COL_SDP = 'stock_deficit_flag'
 
-LABEL_COLS_SEGMENTATION = ['gender', 'age_bin', 'income_bracket']
-FEATURES_FOR_SCALING_SEG = [
+# Define categorical features that need Label Encoding
+LABEL_COLS_FOR_TRANSFORMATION = ['gender', 'age_bin', 'income_bracket']
+# Define numerical features that need Standard Scaling
+NUMERIC_COLS_FOR_SCALING = [
     'total_spent', 'discount_percent', 'stock_to_order_ratio',
-    'procured_quantity', 'delivery_time_days', 'city_order_count',
-    'age_bin', 'income_bracket', 'gender'
+    'procured_quantity', 'delivery_time_days', 'city_order_count'
 ]
+# Define the order of features after transformation (numeric then encoded categorical)
+# This order must match the order of features the pre-trained models expect
+ORDERED_FEATURES_FOR_MODEL_INPUT = NUMERIC_COLS_FOR_SCALING + LABEL_COLS_FOR_TRANSFORMATION
+
 
 # --- CACHED DATA LOADING & MODEL LOADING ---
 @st.cache_data
 def load_segmentation_data_and_fit_transformers():
+    """
+    Loads segmentation data and fits LabelEncoders and StandardScaler.
+    These fitted transformers are then used for preprocessing single-input predictions
+    for both Customer Segmentation and Stock Deficit Prediction.
+    """
     try:
         df_seg = pd.read_csv("customer_df_with_segments.csv")
         profile_seg = pd.read_csv("cluster_profile.csv", index_col=0)
+        
+        # Initialize and fit label encoders
         label_encoders = {}
-        for col in LABEL_COLS_SEGMENTATION:
+        for col in LABEL_COLS_FOR_TRANSFORMATION:
             le = LabelEncoder()
+            # Fit on all unique values from the segmentation data to ensure all possible labels are learned
             le.fit(df_seg[col])
             label_encoders[col] = le
+        
+        # Prepare data for scaler fitting: first encode categorical columns, then concatenate with numeric ones
+        df_for_scaler_fit_numeric = df_seg[NUMERIC_COLS_FOR_SCALING].copy()
+        df_for_scaler_fit_categorical = df_seg[LABEL_COLS_FOR_TRANSFORMATION].copy()
+
+        for col in LABEL_COLS_FOR_TRANSFORMATION:
+            df_for_scaler_fit_categorical[col] = label_encoders[col].transform(df_for_scaler_fit_categorical[col])
+
+        # Combine processed numeric and encoded categorical features for scaler fitting
+        # Ensure the order of columns here matches ORDERED_FEATURES_FOR_MODEL_INPUT
+        df_for_scaler_fit = pd.concat([df_for_scaler_fit_numeric, df_for_scaler_fit_categorical], axis=1)
+        df_for_scaler_fit = df_for_scaler_fit[ORDERED_FEATURES_FOR_MODEL_INPUT] # Ensure exact order
+
+        # Initialize and fit StandardScaler
         scaler = StandardScaler()
-        df_for_scaler_fit = df_seg[FEATURES_FOR_SCALING_SEG]
         scaler.fit(df_for_scaler_fit)
+
         segment_map = {
             0: 'Budget-Conscious',
             1: 'High Discount Seekers',
@@ -87,11 +114,12 @@ def load_segmentation_data_and_fit_transformers():
         st.error("Missing Customer Segmentation data files! Ensure 'customer_df_with_segments.csv' and 'cluster_profile.csv' are in the same directory.")
         return pd.DataFrame(), pd.DataFrame(), {}, None, {}
     except Exception as e:
-        st.error(f"Error loading segmentation data: {e}")
+        st.error(f"Error loading segmentation data or fitting transformers: {e}")
         return pd.DataFrame(), pd.DataFrame(), {}, None, {}
 
 @st.cache_resource
 def load_models():
+    """Loads the pre-trained Random Forest and KMeans models."""
     try:
         rf_model_sm_final = joblib.load("rf_model_sm_final.joblib")
         kmeans_model = joblib.load("kmeans_model.joblib")
@@ -103,10 +131,13 @@ def load_models():
         st.error(f"Error loading models: {e}")
         return None, None
 
+# Load data and models at app startup
 customer_df_seg, cluster_profile_seg, label_encoders_seg, scaler_seg, segment_map_seg = load_segmentation_data_and_fit_transformers()
 rf_model_sm_final, kmeans_model = load_models()
 
-if rf_model_sm_final is None or kmeans_model is None:
+# Stop app if essential components are not loaded
+if rf_model_sm_final is None or kmeans_model is None or scaler_seg is None or not label_encoders_seg:
+    st.error("Failed to load all necessary models or data transformers. Please check file paths and previous error messages.")
     st.stop()
 
 # --- Sidebar Navigation ---
@@ -115,20 +146,6 @@ page = st.sidebar.radio("Go to", ["Customer Segmentation", "Stock Deficit Predic
 if st.sidebar.button("🚪 Logout"):
     st.session_state.logged_in = False
     st.experimental_rerun()
-
-# --- Main Dashboard Introduction ---
-if page == "Home":
-    st.title("Welcome to the BharatCart E-commerce Analytics Dashboard! 🚀")
-    st.markdown("""
-    This dashboard is designed to help BharatCart tackle key e-commerce challenges by leveraging the power of **data analytics and machine learning**. Our main goals are:
-    - **Improve Operational Efficiency**: By predicting potential stockouts.
-    - **Enable Personalized Marketing**: Through intelligent customer segmentation.
-    - **Drive Overall Growth**: By providing actionable insights for better decision-making.
-
-    Use the navigation panel on the left to explore different analytical modules.
-    """)
-    st.image("https://via.placeholder.com/800x200?text=BharatCart+Logo+or+Relevant+E-commerce+Image", caption="Driving Smarter Decisions for BharatCart")
-    st.info("Please select a module from the sidebar to begin your analysis.")
 
 # --- Customer Segmentation Page ---
 if page == "Customer Segmentation":
@@ -222,18 +239,51 @@ if page == "Customer Segmentation":
 
         st.subheader("🔍 Predict Segment for a New Customer")
         with st.form("segmentation_form"):
-            inputs = {}
+            inputs_raw_seg = {}
             col1, col2, col3 = st.columns(3)
-            for i, col in enumerate(FEATURES_FOR_SCALING_SEG):
+            # Define all expected raw input features for segmentation
+            input_features_for_segmentation_raw = NUMERIC_COLS_FOR_SCALING + LABEL_COLS_FOR_TRANSFORMATION
+            
+            for i, col in enumerate(input_features_for_segmentation_raw):
                 with [col1, col2, col3][i % 3]:
-                    inputs[col] = st.number_input(col, value=0.0, step=0.1, key=f"seg_{col}")
-            submitted = st.form_submit_button("Predict Segment")
-            if submitted:
-                input_df = pd.DataFrame([inputs], columns=FEATURES_FOR_SCALING_SEG)
-                input_scaled = scaler_seg.transform(input_df)
-                cluster = kmeans_model.predict(input_scaled)[0]
-                segment = segment_map_seg[cluster]
-                st.write(f"Predicted Segment: **{segment}**")
+                    if col in LABEL_COLS_FOR_TRANSFORMATION:
+                        # For categorical inputs, use selectbox with known classes
+                        try:
+                            options = label_encoders_seg[col].classes_.tolist()
+                            inputs_raw_seg[col] = st.selectbox(f"{col} (Categorical)", options, key=f"seg_{col}")
+                        except Exception:
+                            st.warning(f"Could not load classes for {col}. Please provide a numeric value for now.")
+                            inputs_raw_seg[col] = st.number_input(f"{col} (Numeric/Categorical)", value=0.0, step=0.1, key=f"seg_{col}_num")
+                    else:
+                        inputs_raw_seg[col] = st.number_input(col, value=0.0, step=0.1, key=f"seg_{col}")
+            
+            submitted_seg = st.form_submit_button("Predict Segment")
+            if submitted_seg:
+                # Convert raw inputs to a DataFrame
+                input_df_raw_seg = pd.DataFrame([inputs_raw_seg])
+                
+                # Apply Label Encoding for categorical features using loaded encoders
+                input_df_processed_seg = input_df_raw_seg.copy()
+                for col in LABEL_COLS_FOR_TRANSFORMATION:
+                    if col in input_df_processed_seg.columns and col in label_encoders_seg:
+                        try:
+                            input_df_processed_seg[col] = label_encoders_seg[col].transform(input_df_processed_seg[col])
+                        except ValueError:
+                            st.error(f"Unseen label for '{col}'. Please select a valid option from the dropdown for segmentation.")
+                            st.stop()
+                    elif col in input_df_processed_seg.columns and col not in label_encoders_seg:
+                         st.warning(f"LabelEncoder not found for '{col}'. Assuming numerical input.")
+
+                # Reorder columns to match scaler's fit order (ORDERED_FEATURES_FOR_MODEL_INPUT)
+                input_df_processed_seg = input_df_processed_seg[ORDERED_FEATURES_FOR_MODEL_INPUT]
+
+                # Apply Scaling using the loaded scaler
+                input_scaled_seg = scaler_seg.transform(input_df_processed_seg)
+                
+                # Predict cluster using KMeans model
+                cluster_seg = kmeans_model.predict(input_scaled_seg)[0]
+                segment_name = segment_map_seg[cluster_seg]
+                st.write(f"Predicted Segment: **{segment_name}**")
 
         with st.expander("🔍 See Sample Raw Data"):
             st.markdown("**Here are the first few rows of the input data used for segmentation:**")
@@ -250,174 +300,120 @@ elif page == "Stock Deficit Prediction":
     </p>
     """, unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader("📁 Upload Preprocessed CSV (with encoded features)", type=["csv"], help="Upload a CSV file containing preprocessed features for stock deficit prediction. Ensure it includes columns like total_spent, procured_quantity, discount_percent, etc.")
+    # Clarified uploader text: app expects already preprocessed data
+    st.info("Upload a CSV file containing your **preprocessed (encoded and scaled) features** for stock deficit prediction. Ensure it includes columns like `total_spent`, `procured_quantity`, etc., in their transformed state.")
+    uploaded_file = st.file_uploader("📁 Upload Preprocessed CSV", type=["csv"], help="This file should contain the necessary features already transformed (e.g., encoded categorical, scaled numerical) for the model to analyze.")
 
     if uploaded_file:
         try:
-            df_encoded_sdp = pd.read_csv(uploaded_file)
-            missing_cols = [col for col in FEATURE_COLS_SDP if col not in df_encoded_sdp.columns]
+            df_uploaded_sdp = pd.read_csv(uploaded_file)
+            
+            # Validate required columns are present and numeric
+            missing_cols = [col for col in FEATURE_COLS_SDP if col not in df_uploaded_sdp.columns]
             if missing_cols:
-                st.error(f"Uploaded CSV is missing required features: {', '.join(missing_cols)}.")
+                st.error(f"Uploaded CSV is missing required features for prediction: {', '.join(missing_cols)}. Please ensure all preprocessed features are present.")
                 st.stop()
-            if df_encoded_sdp[FEATURE_COLS_SDP].isnull().any().any():
-                st.error("Uploaded CSV contains missing values.")
-                st.stop()
+            
             for col in FEATURE_COLS_SDP:
-                if not pd.api.types.is_numeric_dtype(df_encoded_sdp[col]):
-                    st.error(f"Column '{col}' must contain numeric values.")
+                if not pd.api.types.is_numeric_dtype(df_uploaded_sdp[col]):
+                    st.error(f"Column '{col}' must contain numeric (preprocessed) values. Please check your uploaded CSV.")
                     st.stop()
+            
+            # Select features for prediction, ensuring they are in the correct order for the model
+            X_predict = df_uploaded_sdp[FEATURE_COLS_SDP]
+            
+            # Check if target column exists in uploaded data for performance evaluation
+            y_exists = TARGET_COL_SDP in df_uploaded_sdp.columns
+            y_true = df_uploaded_sdp[TARGET_COL_SDP] if y_exists else None
 
-            X = df_encoded_sdp[FEATURE_COLS_SDP]
-            y_exists = TARGET_COL_SDP in df_encoded_sdp.columns
-            y = df_encoded_sdp[TARGET_COL_SDP] if y_exists else None
+            # Make predictions using the pre-trained RandomForest model
+            predictions_sdp = rf_model_sm_final.predict(X_predict)
+            probabilities_sdp = rf_model_sm_final.predict_proba(X_predict)[:, 1]
 
+            st.subheader("📊 Model Performance on Uploaded Data (Random Forest After SMOTE)")
             if y_exists:
-                X_train, X_test, y_train, y_test = train_test_split(X, y, stratify=y, test_size=0.2, random_state=42)
-                log_model = LogisticRegression(max_iter=1000, random_state=42)
-                log_model.fit(X_train, y_train)
-                y_pred_log = log_model.predict(X_test)
-                y_prob_log = log_model.predict_proba(X_test)[:, 1]
+                st.write(f"**Test Accuracy:** {accuracy_score(y_true, predictions_sdp):.4f}")
+                st.write(f"**ROC AUC Score:** {roc_auc_score(y_true, probabilities_sdp):.4f}")
+                st.write(f"**Balanced Accuracy Score:** {balanced_accuracy_score(y_true, predictions_sdp):.4f}")
 
-                rf_model = RandomForestClassifier(random_state=42)
-                rf_model.fit(X_train, y_train)
-                y_pred_rf = rf_model.predict(X_test)
-                y_prob_rf = rf_model.predict_proba(X_test)[:, 1]
+                st.subheader("📋 Classification Report")
+                st.text(classification_report(y_true, predictions_sdp))
 
-                smote = SMOTE(random_state=42)
-                X_train_sm, y_train_sm = smote.fit_resample(X_train, y_train)
-                log_model_sm = LogisticRegression(max_iter=1000, random_state=42)
-                log_model_sm.fit(X_train_sm, y_train_sm)
-                y_pred_log_sm = log_model_sm.predict(X_test)
-                y_prob_log_sm = log_model_sm.predict_proba(X_test)[:, 1]
-
-                y_pred_rf_sm_final = rf_model_sm_final.predict(X_test)
-                y_prob_rf_sm_final = rf_model_sm_final.predict_proba(X_test)[:, 1]
-            else:
-                X_test, y_test = X, None
-
-            st.subheader("📊 Model Performance on Uploaded Data")
-            st.markdown("""
-            Here, we evaluate how well our machine learning models perform in predicting stock deficits.
-            We focus on metrics that are especially important when predicting rare events like stockouts.
-            **Accuracy** tells us overall correctness, but **ROC AUC** and **Balanced Accuracy** are better for imbalanced datasets, as they consider both correctly identified deficits and correctly identified non-deficits more fairly.
-            """)
-            if y_exists:
-                st.write(f"**Random Forest (After SMOTE) Performance:** This model is our top performer, especially designed to handle the challenge of having very few actual stock deficit cases in the data.")
-                st.write(f"**Test Accuracy:** {accuracy_score(y_test, y_pred_rf_sm_final):.4f} - This indicates the overall percentage of correct predictions.")
-                st.write(f"**ROC AUC Score:** {roc_auc_score(y_test, y_prob_rf_sm_final):.4f} - A high score here (closer to 1.0) means the model is good at distinguishing between classes, even if one class is rare.")
-                st.write(f"**Balanced Accuracy Score:** {balanced_accuracy_score(y_test, y_pred_rf_sm_final):.4f} - This score provides a more fair measure when there's an imbalance in the number of stockout vs. non-stockout situations. A score near 1.0 is excellent.")
-
-                st.subheader("📋 Classification Report (Random Forest After SMOTE)")
-                st.markdown("""
-                The **classification report** provides a detailed breakdown of the model's performance for each class:
-                - **Precision**: Out of all predicted deficits, how many were actually correct?
-                - **Recall**: Out of all actual deficits, how many did the model correctly identify? This is crucial for avoiding stockouts.
-                - **F1-Score**: A balance between Precision and Recall.
-                - **Support**: The number of actual occurrences of each class in the test data.
-                You'll notice that for `class 1` (stock deficit), recall is very important.
-                """)
-                st.text(classification_report(y_test, y_pred_rf_sm_final))
-
-                st.subheader("📉 Confusion Matrix (Random Forest After SMOTE)")
-                st.markdown("""
-                The **confusion matrix** visually summarizes how well the model classified the data.
-                - The top-left cell shows **True Negatives** (correctly predicted no deficit).
-                - The bottom-right cell shows **True Positives** (correctly predicted a deficit).
-                - The other cells show **errors**: **False Positives** (predicted deficit, but no actual deficit) and **False Negatives** (predicted no deficit, but there was an actual deficit - these are the costly errors we want to minimize!).
-                """)
+                st.subheader("📉 Confusion Matrix")
                 fig_cm_final, ax_cm_final = plt.subplots(figsize=(6, 5))
-                ConfusionMatrixDisplay.from_estimator(rf_model_sm_final, X_test, y_test, cmap='Greens', ax=ax_cm_final)
+                ConfusionMatrixDisplay.from_predictions(y_true, predictions_sdp, cmap='Greens', ax=ax_cm_final)
                 ax_cm_final.set_title("Random Forest (After SMOTE) Confusion Matrix")
                 st.pyplot(fig_cm_final)
                 plt.close(fig_cm_final)
-
-                st.subheader("🔍 Feature Importance (Random Forest After SMOTE)")
-                st.markdown("""
-                This chart highlights the **most influential factors** the model used to predict stock deficits.
-                Features with longer bars have a greater impact. Understanding these drivers allows BharatCart to focus on specific operational areas to prevent stockouts. For example, if 'stock_to_order_ratio' is high, it means this ratio is a strong indicator of a potential deficit.
-                """)
-                importances_sdp = rf_model_sm_final.feature_importances_
-                feat_imp_df_sdp = pd.DataFrame({'Feature': X.columns, 'Importance': importances_sdp}).sort_values(by='Importance', ascending=False)
-                fig_imp, ax_imp = plt.subplots(figsize=(8, 4))
-                sns.barplot(x='Importance', y='Feature', data=feat_imp_df_sdp, palette='viridis', ax=ax_imp)
-                ax_imp.set_title('🔍 Feature Importance (Random Forest After SMOTE)')
-                ax_imp.set_xlabel('Importance Score')
-                ax_imp.set_ylabel('Feature')
-                st.pyplot(fig_imp)
-                plt.close(fig_imp)
-
-                st.subheader("📉 Comparison of All Models' Confusion Matrices")
-                st.markdown("""
-                This set of confusion matrices allows for a side-by-side comparison of all the models we evaluated. You can observe the impact of using **SMOTE** (a technique to balance imbalanced datasets) on model performance, especially in correctly identifying actual stock deficits (True Positives).
-                """)
-                fig_all_cm, axes_all_cm = plt.subplots(2, 2, figsize=(12, 10))
-                fig_all_cm.suptitle("🔍 Confusion Matrices for All Models", fontsize=16)
-                ConfusionMatrixDisplay.from_estimator(log_model, X_test, y_test, ax=axes_all_cm[0, 0], cmap='Blues')
-                axes_all_cm[0, 0].set_title("LogReg (Before SMOTE)")
-                ConfusionMatrixDisplay.from_estimator(log_model_sm, X_test, y_test, ax=axes_all_cm[0, 1], cmap='Blues')
-                axes_all_cm[0, 1].set_title("LogReg (After SMOTE)")
-                ConfusionMatrixDisplay.from_estimator(rf_model, X_test, y_test, ax=axes_all_cm[1, 0], cmap='Greens')
-                axes_all_cm[1, 0].set_title("RF (Before SMOTE)")
-                ConfusionMatrixDisplay.from_estimator(rf_model_sm_final, X_test, y_test, ax=axes_all_cm[1, 1], cmap='Greens')
-                axes_all_cm[1, 1].set_title("RF (After SMOTE)")
-                plt.tight_layout(rect=[0, 0.03, 1, 0.95])
-                st.pyplot(fig_all_cm)
-                plt.close(fig_all_cm)
-
-                st.subheader("📊 Model Comparison Chart")
-                st.markdown("""
-                This bar chart compares the performance of all trained models based on **Test Accuracy**, **ROC AUC**, and **Balanced Accuracy**.
-                A higher score is better for all these metrics. This comparison helps us confidently select the best model for predicting stock deficits for BharatCart.
-                """)
-                models_names = ["LogReg (Before SMOTE)", "LogReg (After SMOTE)", "RF (Before SMOTE)", "RF (After SMOTE)"]
-                test_accuracy_scores = [accuracy_score(y_test, y_pred_log), accuracy_score(y_test, y_pred_log_sm), accuracy_score(y_test, y_pred_rf), accuracy_score(y_test, y_pred_rf_sm_final)]
-                roc_auc_scores = [roc_auc_score(y_test, y_prob_log), roc_auc_score(y_test, y_prob_log_sm), roc_auc_score(y_test, y_prob_rf), roc_auc_score(y_test, y_prob_rf_sm_final)]
-                balanced_acc_scores = [balanced_accuracy_score(y_test, y_pred_log), balanced_accuracy_score(y_test, y_pred_log_sm), balanced_accuracy_score(y_test, y_pred_rf), balanced_accuracy_score(y_test, y_pred_rf_sm_final)]
-                x_pos = np.arange(len(models_names))
-                bar_width = 0.25
-                fig_comp, ax_comp = plt.subplots(figsize=(10, 6))
-                ax_comp.bar(x_pos - bar_width, test_accuracy_scores, width=bar_width, label='Test Accuracy')
-                ax_comp.bar(x_pos, roc_auc_scores, width=bar_width, label='ROC AUC')
-                ax_comp.bar(x_pos + bar_width, balanced_acc_scores, width=bar_width, label='Balanced Accuracy')
-                ax_comp.set_xticks(x_pos)
-                ax_comp.set_xticklabels(models_names, rotation=15, ha='right')
-                ax_comp.set_ylim(0.0, 1.05)
-                ax_comp.set_ylabel("Score")
-                ax_comp.set_title("📊 Model Comparison (LogReg vs RF | Before & After SMOTE)")
-                ax_comp.legend()
-                plt.tight_layout()
-                st.pyplot(fig_comp)
-                plt.close(fig_comp)
             else:
-                st.info("Target column 'stock_deficit_flag' not found in the uploaded CSV. We can only generate predictions for new data.")
-
+                st.info("Target column 'stock_deficit_flag' not found in the uploaded CSV. Performance metrics cannot be displayed.")
+            
             st.subheader("🔍 Predict Stock Deficit for a Single Order")
+            st.markdown("Enter **raw** feature values below. These will be transformed by the app before prediction using the loaded preprocessing pipelines.")
             with st.form("single_prediction_form"):
-                inputs = {}
-                col1, col2, col3 = st.columns(3)
-                for i, col in enumerate(FEATURE_COLS_SDP):
-                    with [col1, col2, col3][i % 3]:
-                        inputs[col] = st.number_input(col, value=0.0, step=0.1, key=f"sdp_{col}")
-                submitted = st.form_submit_button("Predict")
-                if submitted:
-                    input_df = pd.DataFrame([inputs], columns=FEATURE_COLS_SDP)
-                    pred = rf_model_sm_final.predict(input_df)[0]
-                    prob = rf_model_sm_final.predict_proba(input_df)[0, 1]
-                    st.write(f"Prediction: **{'Deficit' if pred == 1 else 'No Deficit'}** (Probability: {prob:.2%})")
+                inputs_raw_sdp = {}
+                col_layout = st.columns(3)
+                
+                # Input fields for raw features, matching the ORDERED_FEATURES_FOR_MODEL_INPUT for consistency
+                # This ensures proper order for transformation later
+                for i, col in enumerate(ORDERED_FEATURES_FOR_MODEL_INPUT):
+                    with col_layout[i % 3]:
+                        if col in LABEL_COLS_FOR_TRANSFORMATION:
+                            try:
+                                options = label_encoders_seg[col].classes_.tolist()
+                                inputs_raw_sdp[col] = st.selectbox(f"{col} (Categorical)", options, key=f"sdp_single_{col}")
+                            except Exception:
+                                st.warning(f"Could not load classes for {col}. Inputting as numeric for single prediction.")
+                                inputs_raw_sdp[col] = st.number_input(f"{col} (Numeric/Categorical)", value=0.0, step=0.1, key=f"sdp_single_{col}_num")
+                        else:
+                            inputs_raw_sdp[col] = st.number_input(col, value=0.0, step=0.1, key=f"sdp_single_{col}")
+                
+                submitted_single_sdp = st.form_submit_button("Predict Single Order")
+                
+                if submitted_single_sdp:
+                    # Create a DataFrame from raw inputs
+                    single_input_df_raw_sdp = pd.DataFrame([inputs_raw_sdp])
 
-            st.subheader("📈 Generated Predictions")
+                    # Apply Label Encoding for categorical features
+                    single_input_df_processed_sdp = single_input_df_raw_sdp.copy()
+                    for col in LABEL_COLS_FOR_TRANSFORMATION:
+                        if col in single_input_df_processed_sdp.columns and col in label_encoders_seg:
+                            try:
+                                single_input_df_processed_sdp[col] = label_encoders_seg[col].transform(single_input_df_processed_sdp[col])
+                            except ValueError as ve:
+                                st.error(f"Error encoding '{col}': {ve}. Please select a valid option for single prediction input.")
+                                st.stop()
+                        elif col in single_input_df_processed_sdp.columns:
+                            st.warning(f"LabelEncoder not found for '{col}'. Assuming it's already numeric or not to be encoded for single prediction.")
+
+                    # Reorder features to match the scaler's and model's expected input order
+                    df_for_scaling_and_prediction_single = single_input_df_processed_sdp[ORDERED_FEATURES_FOR_MODEL_INPUT]
+                    
+                    # Apply Scaling
+                    input_scaled_for_sdp_single = scaler_seg.transform(df_for_scaling_and_prediction_single)
+                    
+                    # Convert back to DataFrame with correct column names for prediction
+                    input_df_final_sdp = pd.DataFrame(input_scaled_for_sdp_single, columns=ORDERED_FEATURES_FOR_MODEL_INPUT)
+                    
+                    # Predict using the pre-trained RF model
+                    pred_single = rf_model_sm_final.predict(input_df_final_sdp)[0]
+                    prob_single = rf_model_sm_final.predict_proba(input_df_final_sdp)[0, 1]
+                    st.write(f"Prediction: **{'Deficit' if pred_single == 1 else 'No Deficit'}** (Probability: {prob_single:.2%})")
+
+            st.subheader("📈 Generated Predictions for Uploaded Data")
             st.markdown("""
             Here are the **stock deficit predictions** for the data you uploaded.
             The `predicted_stock_deficit_flag` column will show `1` if a deficit is predicted, and `0` if not.
             The `deficit_probability` indicates the model's confidence in that prediction. You can download these predictions to integrate them into your inventory management systems.
             """)
-            predictions_all = rf_model_sm_final.predict(X)
-            probabilities_all = rf_model_sm_final.predict_proba(X)[:, 1]
-            prediction_results_df = df_encoded_sdp.copy()
-            prediction_results_df['predicted_stock_deficit_flag'] = predictions_all
-            prediction_results_df['deficit_probability'] = probabilities_all
+            
+            prediction_results_df = df_uploaded_sdp.copy()
+            prediction_results_df['predicted_stock_deficit_flag'] = predictions_sdp
+            prediction_results_df['deficit_probability'] = probabilities_sdp
+            
             st.write("First 10 rows with predictions:")
             st.dataframe(prediction_results_df.head(10))
+            
             st.download_button(
                 label="Download Predictions CSV",
                 data=prediction_results_df.to_csv(index=False).encode('utf-8'),
@@ -425,11 +421,11 @@ elif page == "Stock Deficit Prediction":
                 mime="text/csv",
             )
         except Exception as e:
-            st.error(f"Error processing uploaded file: {e}. Please ensure your CSV is correctly formatted and contains all required features.")
-            st.info("Check console for full error traceback if you are running locally.")
+            st.error(f"Error processing uploaded file: {e}. Please ensure your CSV is correctly formatted and contains all required features (and is preprocessed as expected).")
+            st.info(f"Check console for full error traceback if you are running locally. Error: {e}")
             st.stop()
     else:
-        st.info("👆 Please upload a CSV file with your preprocessed data to see predictions and model performance. This file should contain the necessary features for the model to analyze.")
+        st.info("👆 Please upload a CSV file with your **preprocessed data** to see predictions and model performance. This file should contain the necessary features for the model to analyze.")
 
     st.subheader("✅ Final Recommendation")
     st.markdown("""
