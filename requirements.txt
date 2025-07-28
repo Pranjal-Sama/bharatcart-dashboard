@@ -3,8 +3,8 @@ pandas
 matplotlib
 seaborn
 numpy
-scikit-learn==1.7.1  # Pin to the version Streamlit Cloud installs easily
-imbalanced-learn==0.12.4 # Use the correct package name and a version compatible with sklearn>=1.4
+scikit-learn==1.2.2       # Trying a slightly older, very stable version
+imbalanced-learn==0.10.1  # Compatible with scikit-learn==1.2.x
 joblib
 bcrypt
 python-dotenv
