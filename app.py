@@ -284,6 +284,12 @@ elif page == "Stock Deficit Prediction":
                 y_pred_rf = rf_model.predict(X_test)
                 y_prob_rf = rf_model.predict_proba(X_test)[:, 1]
 
+                # Logistic Regression with class_weight='balanced' (simulating SMOTE effect)
+                log_model_bal = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
+                log_model_bal.fit(X_train, y_train)
+                y_pred_log_bal = log_model_bal.predict(X_test)
+                y_prob_log_bal = log_model_bal.predict_proba(X_test)[:, 1]
+
                 # Pre-trained Random Forest (SMOTE)
                 y_pred_rf_sm_final = rf_model_sm_final.predict(X_test)
                 y_prob_rf_sm_final = rf_model_sm_final.predict_proba(X_test)[:, 1]
@@ -343,19 +349,18 @@ elif page == "Stock Deficit Prediction":
 
                 st.subheader("📉 Comparison of All Models' Confusion Matrices")
                 st.markdown("""
-                This set of confusion matrices allows for a side-by-side comparison of all the models we evaluated. Note that 'Before/After SMOTE' labels for Logistic Regression and Random Forest refer to models trained with balanced class weights to simulate SMOTE effects, except for the pre-trained Random Forest which uses SMOTE.
+                This set of confusion matrices allows for a side-by-side comparison of all the models we evaluated. You can observe the impact of using **balanced class weights** on model performance, especially in correctly identifying actual stock deficits (True Positives).
                 """)
                 fig_all_cm, axes_all_cm = plt.subplots(2, 2, figsize=(12, 10))
                 fig_all_cm.suptitle("🔍 Confusion Matrices for All Models", fontsize=16)
                 ConfusionMatrixDisplay.from_estimator(log_model, X_test, y_test, ax=axes_all_cm[0, 0], cmap='Blues')
-                axes_all_cm[0, 0].set_title("LogReg (Before SMOTE)")
-                # Placeholder for LogReg (After SMOTE) - not computed, will use static metrics in bar plot
-                axes_all_cm[0, 1].set_title("LogReg (After SMOTE)")
-                axes_all_cm[0, 1].text(0.5, 0.5, "Not Computed\n(Using Static Metrics)", ha='center', va='center', fontsize=12)
+                axes_all_cm[0, 0].set_title("LogReg (Balanced Weights)")
+                ConfusionMatrixDisplay.from_estimator(log_model_bal, X_test, y_test, ax=axes_all_cm[0, 1], cmap='Blues')
+                axes_all_cm[0, 1].set_title("LogReg (Balanced Weights)")
                 ConfusionMatrixDisplay.from_estimator(rf_model, X_test, y_test, ax=axes_all_cm[1, 0], cmap='Greens')
-                axes_all_cm[1, 0].set_title("RF (Before SMOTE)")
+                axes_all_cm[1, 0].set_title("RF (Balanced Weights)")
                 ConfusionMatrixDisplay.from_estimator(rf_model_sm_final, X_test, y_test, ax=axes_all_cm[1, 1], cmap='Greens')
-                axes_all_cm[1, 1].set_title("RF (After SMOTE)")
+                axes_all_cm[1, 1].set_title("RF (Pre-trained with SMOTE)")
                 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
                 st.pyplot(fig_all_cm)
                 plt.close(fig_all_cm)
@@ -363,13 +368,12 @@ elif page == "Stock Deficit Prediction":
                 st.subheader("📊 Model Comparison Chart")
                 st.markdown("""
                 This bar chart compares the performance of all trained models based on **Test Accuracy**, **ROC AUC**, and **Balanced Accuracy**.
-                A higher score is better for all these metrics. Note that 'LogReg (After SMOTE)' metrics are static from original SMOTE-based results, as this model uses balanced weights to avoid SMOTE compatibility issues.
+                A higher score is better for all these metrics. This comparison helps us confidently select the best model for predicting stock deficits for BharatCart.
                 """)
-                models_names = ["LogReg (Before SMOTE)", "LogReg (After SMOTE)", "RF (Before SMOTE)", "RF (After SMOTE)"]
-                # Static metrics from original SMOTE-based plot for LogReg (After SMOTE)
-                test_accuracy_scores = [accuracy_score(y_test, y_pred_log), 0.9608, accuracy_score(y_test, y_pred_rf), accuracy_score(y_test, y_pred_rf_sm_final)]
-                roc_auc_scores = [roc_auc_score(y_test, y_prob_log), 0.9982, roc_auc_score(y_test, y_prob_rf), roc_auc_score(y_test, y_prob_rf_sm_final)]
-                balanced_acc_scores = [balanced_accuracy_score(y_test, y_pred_log), 0.9802, balanced_accuracy_score(y_test, y_pred_rf), balanced_accuracy_score(y_test, y_pred_rf_sm_final)]
+                models_names = ["LogReg (Balanced Weights)", "LogReg (Balanced Weights)", "RF (Balanced Weights)", "RF (Pre-trained with SMOTE)"]
+                test_accuracy_scores = [accuracy_score(y_test, y_pred_log), accuracy_score(y_test, y_pred_log_bal), accuracy_score(y_test, y_pred_rf), accuracy_score(y_test, y_pred_rf_sm_final)]
+                roc_auc_scores = [roc_auc_score(y_test, y_prob_log), roc_auc_score(y_test, y_prob_log_bal), roc_auc_score(y_test, y_prob_rf), roc_auc_score(y_test, y_prob_rf_sm_final)]
+                balanced_acc_scores = [balanced_accuracy_score(y_test, y_pred_log), balanced_accuracy_score(y_test, y_pred_log_bal), balanced_accuracy_score(y_test, y_pred_rf), balanced_accuracy_score(y_test, y_pred_rf_sm_final)]
                 x_pos = np.arange(len(models_names))
                 bar_width = 0.25
                 fig_comp, ax_comp = plt.subplots(figsize=(10, 6))
@@ -378,11 +382,10 @@ elif page == "Stock Deficit Prediction":
                 ax_comp.bar(x_pos + bar_width, balanced_acc_scores, width=bar_width, label='Balanced Accuracy')
                 ax_comp.set_xticks(x_pos)
                 ax_comp.set_xticklabels(models_names, rotation=15, ha='right')
-                ax_comp.set_ylim(0.4, 1.05)
+                ax_comp.set_ylim(0.0, 1.05)
                 ax_comp.set_ylabel("Score")
-                ax_comp.set_title("📊 Model Comparison (LogReg vs RF | Before & After SMOTE)")
+                ax_comp.set_title("📊 Model Comparison (LogReg vs RF | Balanced Weights & Pre-trained SMOTE)")
                 ax_comp.legend()
-                ax_comp.grid(axis='y', linestyle='--', alpha=0.5)
                 plt.tight_layout()
                 st.pyplot(fig_comp)
                 plt.close(fig_comp)
