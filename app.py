@@ -214,7 +214,7 @@ if page == "Home":
     </ul>
     """, unsafe_allow_html=True)
     # Placeholder for PPT screenshot (e.g., confusion matrix or feature importance)
-    st.image("https://via.placeholder.com/600x400?text=Random+Forest+Confusion+Matrix+or+Feature+Importance", caption="Example: Random Forest Model Performance (Replace with your PPT screenshot)")
+   
 
     st.subheader("🌐 Deployment")
     st.markdown("""
