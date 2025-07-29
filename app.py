@@ -110,24 +110,127 @@ if rf_model_sm_final is None or kmeans_model is None:
 
 # --- Sidebar Navigation ---
 st.sidebar.title("📁 Navigation")
-page = st.sidebar.radio("Go to", ["Customer Segmentation", "Stock Deficit Prediction"])
+page = st.sidebar.radio("Go to", ["Home", "Customer Segmentation", "Stock Deficit Prediction"])
 if st.sidebar.button("🚪 Logout"):
     st.session_state.logged_in = False
     st.experimental_rerun()
 
-# --- Main Dashboard Introduction ---
+# --- Home Page ---
 if page == "Home":
-    st.title("Welcome to the BharatCart E-commerce Analytics Dashboard! 🚀")
-    st.markdown("""
-    This dashboard is designed to help BharatCart tackle key e-commerce challenges by leveraging the power of **data analytics and machine learning**. Our main goals are:
-    - **Improve Operational Efficiency**: By predicting potential stockouts.
-    - **Enable Personalized Marketing**: Through intelligent customer segmentation.
-    - **Drive Overall Growth**: By providing actionable insights for better decision-making.
+    st.markdown("<h1 style='text-align: center;'>🚀 BharatCart Analytics Dashboard</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center; color:#F63366;'>Solving Inventory Gaps & Customer Segmentation Using Data Analytics and ML</h3>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size:18px;'>A Proof-of-Concept Project for Enhanced E-commerce Operations</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size:16px;'>Developed by <strong>Pranjal Sharma</strong>, Data Analyst Intern at Alpixn Technologies<br>[July 28, 2025]</p>", unsafe_allow_html=True)
+    st.image("https://via.placeholder.com/800x200?text=BharatCart+Analytics+Dashboard", caption="Driving Smarter Decisions for BharatCart")
 
-    Use the navigation panel on the left to explore different analytical modules.
-    """)
-    st.image("https://via.placeholder.com/800x200?text=BharatCart+Logo+or+Relevant+E-commerce+Image", caption="Driving Smarter Decisions for BharatCart")
-    st.info("Please select a module from the sidebar to begin your analysis.")
+    st.subheader("🌟 Project Overview")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    The BharatCart Analytics Dashboard leverages <strong>data analytics</strong> and <strong>machine learning</strong> to address key e-commerce challenges. This proof-of-concept (PoC) project empowers BharatCart to optimize inventory, enhance customer engagement, and drive business growth.
+    </p>
+    """, unsafe_allow_html=True)
+
+    st.subheader("📌 Business Problems")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    BharatCart faces two critical challenges limiting its growth and efficiency:
+    </p>
+    <ul style='font-size:16px;'>
+        <li><strong>Inventory Imbalances</strong>: Potential stockouts, lost sales, and inefficient warehouse management.</li>
+        <li><strong>Lack of Customer Segmentation</strong>: Generic marketing efforts that fail to address diverse customer needs.</li>
+    </ul>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🎯 Project Objectives")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    This dashboard aims to:
+    </p>
+    <ul style='font-size:16px;'>
+        <li><strong>Proactive Inventory Management</strong>: Predict potential stock deficits to ensure product availability.</li>
+        <li><strong>Personalized Customer Engagement</strong>: Segment customers for targeted marketing strategies.</li>
+        <li><strong>Drive Business Growth</strong>: Improve operational efficiency and customer satisfaction through data-driven insights.</li>
+    </ul>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🛠️ Project Architecture")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    The project follows a structured 13-step workflow to transform raw data into actionable insights:
+    </p>
+    <ol style='font-size:16px;'>
+        <li><strong>Data Ingestion</strong>: Load BharatCart_Ecommerce_Dataset.csv.</li>
+        <li><strong>Initial Data Overview</strong>: Review dataset shape, columns, and data types.</li>
+        <li><strong>Data Cleaning & Preprocessing (I)</strong>: Handle missing values (median/mode imputation) and correct data types (e.g., order_date).</li>
+        <li><strong>Data Cleaning & Preprocessing (II)</strong>: Remove duplicate records and irrelevant columns.</li>
+        <li><strong>Feature Engineering - Inventory</strong>: Create stock_to_order_ratio and stock_deficit_flag.</li>
+        <li><strong>Feature Engineering - Customer & Purchase</strong>: Generate total_spent, discount_percent, date-based features, age_group, city_order_count, delivery_delay_flag.</li>
+        <li><strong>Exploratory Data Analysis (EDA)</strong>: Conduct univariate and bivariate analyses with visualizations.</li>
+        <li><strong>Feature Encoding</strong>: Convert categorical features to numerical (Label Encoding).</li>
+        <li><strong>Feature Scaling</strong>: Standardize numerical features using StandardScaler.</li>
+        <li><strong>Data Splitting & Imbalance Handling</strong>: Prepare data with train-test split and SMOTE for class imbalance.</li>
+        <li><strong>Model Building - Customer Segmentation</strong>: Train and apply K-Means Clustering (k=3).</li>
+        <li><strong>Model Building - Stock Deficit Prediction</strong>: Develop Logistic Regression and Random Forest models.</li>
+        <li><strong>Model Evaluation & Deployment</strong>: Assess performance, select the best model, and deploy via Streamlit.</li>
+    </ol>
+    """, unsafe_allow_html=True)
+
+    st.subheader("📊 Dataset Details")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    The dashboard uses the following dataset:
+    </p>
+    """, unsafe_allow_html=True)
+    dataset_details = pd.DataFrame({
+        "Attribute": ["Dataset Name", "No. of Rows", "No. of Columns", "Date Range", "Missing Values", "Duplicate Values"],
+        "Value": ["BharatCart_Ecommerce_Dataset.csv", "60,827", "16", "2023-2025", "250", "63"]
+    })
+    st.table(dataset_details)
+
+    st.subheader("👥 Customer Segmentation Insights")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    Using K-Means Clustering (k=3, determined via Elbow Method & Silhouette Score), we identified three customer segments:
+    </p>
+    <ul style='font-size:16px;'>
+        <li><strong>Premium Buyers (~50%)</strong>: High spenders, less discount-driven. <em>Strategy</em>: Focus on new product launches, premium services, loyalty benefits.</li>
+        <li><strong>Budget-Conscious (~40%)</strong>: Moderate spending, average discount engagement, higher stock_to_order_ratio. <em>Strategy</em>: Offer value-for-money products, bundles, regular promotions.</li>
+        <li><strong>High Discount Seekers (~10%)</strong>: Low spending, highly promotion-driven. <em>Strategy</em>: Provide exclusive sales, flash deals, targeted discount codes.</li>
+    </ul>
+    <p style='font-size:16px;'>
+    Key features: total_spent, discount_percent, procured_quantity, delivery_time_days, city_order_count, age_bin, income_bracket, gender.
+    </p>
+    """, unsafe_allow_html=True)
+
+    st.subheader("📦 Stock Deficit Prediction Insights")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    Predictive models (Logistic Regression, Random Forest) were built to forecast stock deficits, addressing a ~1% deficit rate with SMOTE:
+    </p>
+    <ul style='font-size:16px;'>
+        <li><strong>Model Performance</strong>: Random Forest (After SMOTE) excels with ROC AUC ~0.999, Balanced Accuracy ~0.995, and 123 True Positives in confusion matrix.</li>
+        <li><strong>Key Drivers</strong>: stock_to_order_ratio, procured_quantity, city_order_count (demographic features had negligible impact).</li>
+        <li><strong>Benefits</strong>: Proactive inventory management, reduced stockouts, optimized stock levels.</li>
+    </ul>
+    """, unsafe_allow_html=True)
+    # Placeholder for PPT screenshot (e.g., confusion matrix or feature importance)
+    st.image("https://via.placeholder.com/600x400?text=Random+Forest+Confusion+Matrix+or+Feature+Importance", caption="Example: Random Forest Model Performance (Replace with your PPT screenshot)")
+
+    st.subheader("🌐 Deployment")
+    st.markdown("""
+    <p style='font-size:16px;'>
+    The solution is deployed as an interactive Streamlit dashboard, accessible at <a href='https://bharatcart-dashboard.streamlit.app/' style='color:#F63366;'>bharatcart-dashboard.streamlit.app</a>.
+    </p>
+    <ul style='font-size:16px;'>
+        <li><strong>User-Friendly Interface</strong>: Intuitive navigation for business users.</li>
+        <li><strong>Data Upload & Prediction</strong>: Real-time stock deficit predictions from uploaded data.</li>
+        <li><strong>Dynamic Insights</strong>: Visualizations for customer segmentation and stock predictions.</li>
+        <li><strong>Actionable Outputs</strong>: Supports data-driven inventory and marketing decisions.</li>
+        <li><strong>Accessibility</strong>: Makes complex ML outputs actionable for non-technical stakeholders.</li>
+    </ul>
+    """, unsafe_allow_html=True)
+
+    st.info("Explore the dashboard using the sidebar navigation to dive into Customer Segmentation or Stock Deficit Prediction!")
 
 # --- Customer Segmentation Page ---
 if page == "Customer Segmentation":
