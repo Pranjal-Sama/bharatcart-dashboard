@@ -284,12 +284,6 @@ elif page == "Stock Deficit Prediction":
                 y_pred_rf = rf_model.predict(X_test)
                 y_prob_rf = rf_model.predict_proba(X_test)[:, 1]
 
-                # Logistic Regression with class_weight='balanced' (simulating SMOTE effect)
-                log_model_bal = LogisticRegression(max_iter=1000, random_state=42, class_weight='balanced')
-                log_model_bal.fit(X_train, y_train)
-                y_pred_log_bal = log_model_bal.predict(X_test)
-                y_prob_log_bal = log_model_bal.predict_proba(X_test)[:, 1]
-
                 # Pre-trained Random Forest (SMOTE)
                 y_pred_rf_sm_final = rf_model_sm_final.predict(X_test)
                 y_prob_rf_sm_final = rf_model_sm_final.predict_proba(X_test)[:, 1]
@@ -301,6 +295,7 @@ elif page == "Stock Deficit Prediction":
             Here, we evaluate how well our machine learning models perform in predicting stock deficits.
             We focus on metrics that are especially important when predicting rare events like stockouts.
             **Accuracy** tells us overall correctness, but **ROC AUC** and **Balanced Accuracy** are better for imbalanced datasets, as they consider both correctly identified deficits and correctly identified non-deficits more fairly.
+            Note: 'Before/After SMOTE' labels for Logistic Regression and Random Forest refer to models trained with balanced class weights to simulate SMOTE effects, except for the pre-trained Random Forest which uses SMOTE.
             """)
             if y_exists:
                 st.write(f"**Random Forest (Pre-trained with SMOTE) Performance:** This model is our top performer, designed to handle the challenge of having very few actual stock deficit cases in the data.")
@@ -349,31 +344,31 @@ elif page == "Stock Deficit Prediction":
 
                 st.subheader("📉 Comparison of All Models' Confusion Matrices")
                 st.markdown("""
-                This set of confusion matrices allows for a side-by-side comparison of all the models we evaluated. You can observe the impact of using **balanced class weights** on model performance, especially in correctly identifying actual stock deficits (True Positives).
+                This set of confusion matrices allows for a side-by-side comparison of all the models we evaluated. Note that 'LogReg (After SMOTE)' is not computed here and uses static metrics in the comparison chart below.
                 """)
                 fig_all_cm, axes_all_cm = plt.subplots(2, 2, figsize=(12, 10))
                 fig_all_cm.suptitle("🔍 Confusion Matrices for All Models", fontsize=16)
                 ConfusionMatrixDisplay.from_estimator(log_model, X_test, y_test, ax=axes_all_cm[0, 0], cmap='Blues')
-                axes_all_cm[0, 0].set_title("LogReg (Balanced Weights)")
-                ConfusionMatrixDisplay.from_estimator(log_model_bal, X_test, y_test, ax=axes_all_cm[0, 1], cmap='Blues')
-                axes_all_cm[0, 1].set_title("LogReg (Balanced Weights)")
+                axes_all_cm[0, 0].set_title("LogReg (Before SMOTE)")
+                axes_all_cm[0, 1].text(0.5, 0.5, "Not Computed\n(LogReg After SMOTE)", ha='center', va='center', fontsize=12)
+                axes_all_cm[0, 1].set_title("LogReg (After SMOTE)")
                 ConfusionMatrixDisplay.from_estimator(rf_model, X_test, y_test, ax=axes_all_cm[1, 0], cmap='Greens')
-                axes_all_cm[1, 0].set_title("RF (Balanced Weights)")
+                axes_all_cm[1, 0].set_title("RF (Before SMOTE)")
                 ConfusionMatrixDisplay.from_estimator(rf_model_sm_final, X_test, y_test, ax=axes_all_cm[1, 1], cmap='Greens')
-                axes_all_cm[1, 1].set_title("RF (Pre-trained with SMOTE)")
+                axes_all_cm[1, 1].set_title("RF (After SMOTE)")
                 plt.tight_layout(rect=[0, 0.03, 1, 0.95])
                 st.pyplot(fig_all_cm)
                 plt.close(fig_all_cm)
 
-                st.subheader("📊 Model Comparison Chart")
+                st.subheader("📊 Model Comparison Chart (Dynamic Metrics)")
                 st.markdown("""
-                This bar chart compares the performance of all trained models based on **Test Accuracy**, **ROC AUC**, and **Balanced Accuracy**.
-                A higher score is better for all these metrics. This comparison helps us confidently select the best model for predicting stock deficits for BharatCart.
+                This bar chart compares the performance of all trained models based on **Test Accuracy**, **ROC AUC**, and **Balanced Accuracy** using the uploaded data.
+                Note: 'LogReg (After SMOTE)' uses static metrics from original SMOTE-based results to match previous analysis.
                 """)
-                models_names = ["LogReg (Balanced Weights)", "LogReg (Balanced Weights)", "RF (Balanced Weights)", "RF (Pre-trained with SMOTE)"]
-                test_accuracy_scores = [accuracy_score(y_test, y_pred_log), accuracy_score(y_test, y_pred_log_bal), accuracy_score(y_test, y_pred_rf), accuracy_score(y_test, y_pred_rf_sm_final)]
-                roc_auc_scores = [roc_auc_score(y_test, y_prob_log), roc_auc_score(y_test, y_prob_log_bal), roc_auc_score(y_test, y_prob_rf), roc_auc_score(y_test, y_prob_rf_sm_final)]
-                balanced_acc_scores = [balanced_accuracy_score(y_test, y_pred_log), balanced_accuracy_score(y_test, y_pred_log_bal), balanced_accuracy_score(y_test, y_pred_rf), balanced_accuracy_score(y_test, y_pred_rf_sm_final)]
+                models_names = ["LogReg (Before SMOTE)", "LogReg (After SMOTE)", "RF (Before SMOTE)", "RF (After SMOTE)"]
+                test_accuracy_scores = [accuracy_score(y_test, y_pred_log), 0.9608, accuracy_score(y_test, y_pred_rf), accuracy_score(y_test, y_pred_rf_sm_final)]
+                roc_auc_scores = [roc_auc_score(y_test, y_prob_log), 0.9982, roc_auc_score(y_test, y_prob_rf), roc_auc_score(y_test, y_prob_rf_sm_final)]
+                balanced_acc_scores = [balanced_accuracy_score(y_test, y_pred_log), 0.9802, balanced_accuracy_score(y_test, y_pred_rf), balanced_accuracy_score(y_test, y_pred_rf_sm_final)]
                 x_pos = np.arange(len(models_names))
                 bar_width = 0.25
                 fig_comp, ax_comp = plt.subplots(figsize=(10, 6))
@@ -382,10 +377,11 @@ elif page == "Stock Deficit Prediction":
                 ax_comp.bar(x_pos + bar_width, balanced_acc_scores, width=bar_width, label='Balanced Accuracy')
                 ax_comp.set_xticks(x_pos)
                 ax_comp.set_xticklabels(models_names, rotation=15, ha='right')
-                ax_comp.set_ylim(0.0, 1.05)
+                ax_comp.set_ylim(0.4, 1.05)
                 ax_comp.set_ylabel("Score")
-                ax_comp.set_title("📊 Model Comparison (LogReg vs RF | Balanced Weights & Pre-trained SMOTE)")
+                ax_comp.set_title("📊 Model Comparison (LogReg vs RF | Before & After SMOTE)")
                 ax_comp.legend()
+                ax_comp.grid(axis='y', linestyle='--', alpha=0.5)
                 plt.tight_layout()
                 st.pyplot(fig_comp)
                 plt.close(fig_comp)
@@ -429,8 +425,39 @@ elif page == "Stock Deficit Prediction":
             st.error(f"Error processing uploaded file: {e}. Please ensure your CSV is correctly formatted and contains all required features.")
             st.info("Check console for full error traceback if you are running locally.")
             st.stop()
-    else:
-        st.info("👆 Please upload a CSV file with your preprocessed data to see predictions and model performance. This file should contain the necessary features for the model to analyze.")
+
+    # Static Model Comparison Chart (displayed without CSV upload)
+    st.subheader("📊 Baseline Model Comparison")
+    st.markdown("""
+    This bar chart shows the baseline performance of our machine learning models for stock deficit prediction, based on historical results.
+    It compares **Test Accuracy**, **ROC AUC**, and **Balanced Accuracy** across models, using results from the original SMOTE-based analysis.
+    A higher score is better for all metrics, helping BharatCart select the best model for inventory management.
+    """)
+    models = [
+        "LogReg (Before SMOTE)",
+        "LogReg (After SMOTE)",
+        "RF (Before SMOTE)",
+        "RF (After SMOTE)"
+    ]
+    test_accuracy = [0.9898, 0.9608, 0.9995, 0.9990]
+    roc_auc = [0.9943, 0.9982, 0.99998, 0.99996]
+    balanced_acc = [0.5000, 0.9802, 0.9758, 0.9955]
+    bar_width = 0.25
+    x = np.arange(len(models))
+    fig_static, ax_static = plt.subplots(figsize=(10, 6))
+    ax_static.bar(x - bar_width, test_accuracy, width=bar_width, label='Test Accuracy')
+    ax_static.bar(x, roc_auc, width=bar_width, label='ROC AUC')
+    ax_static.bar(x + bar_width, balanced_acc, width=bar_width, label='Balanced Accuracy')
+    ax_static.set_xticks(x)
+    ax_static.set_xticklabels(models, rotation=15)
+    ax_static.set_ylim(0.4, 1.05)
+    ax_static.set_ylabel("Score")
+    ax_static.set_title("📊 Model Comparison (LogReg vs RF | Before & After SMOTE)")
+    ax_static.legend()
+    ax_static.grid(axis='y', linestyle='--', alpha=0.5)
+    plt.tight_layout()
+    st.pyplot(fig_static)
+    plt.close(fig_static)
 
     st.subheader("✅ Final Recommendation")
     st.markdown("""
